@@ -38,5 +38,6 @@ def get_airlines():
 
 if __name__ == "__main__":
     #token = get_token()
-   # get_airports()
+    get_airports()
     get_airlines()
+
