@@ -1,8 +1,11 @@
 import json
 import re
 import requests
-from geopy.geocoders import Nominatim
+import codecs
 from bs4 import BeautifulSoup
+
+flights = []
+airports = []
 
 
 def get_token():
@@ -29,28 +32,40 @@ def get_airports():
     response = requests.get("https://zh.flightaware.com/ajax/ignoreall/vicinity_airports.rvt")
     response.enconding = "utf-8"
 
-    text = response.text
-    airports_json = json.loads(text)
+    web_text = response.text
+    airports_json = json.loads(web_text)
 
-    text = json.dumps(airports_json, indent=4)
+    airports_text = json.dumps(airports_json, indent=4)
     airports_file = open("airports_ori.json", "w")
-    airports_file.write(text)
+    airports_file.write(airports_text)
 
+    iata_text = open("airports-info.json", encoding="utf-8-sig")
+    iata_json = json.load(iata_text)
+
+    country_json = json.load(codecs.open('country_code.json', 'r', 'utf-8-sig'))
+    airports.clear()
     features = airports_json['features']
-    airports = []
-    geolocator = Nominatim(user_agent="baidu", timeout=5)
+
     for feature in features:
-        icao = feature["properties"]["icao"]
         iata = feature["properties"]["iata"]
-        coordinates = feature["geometry"]["coordinates"]
-        # location = geolocator.reverse(str(coordinates[1])+ ","+str(coordinates[0])).address.rsplit(',')[0]
-        airport = {"icao": icao, "iata": iata, "coordinates": coordinates, "location": ""}
-        airports.append(airport)
+        icao = feature["properties"]["icao"]
+        for detail in iata_json:
+            if icao == detail["icao"] or iata == detail["iata"]:
+                coordinates = feature["geometry"]["coordinates"]
+                name = detail["name"]
+                city = detail["city"]
+                state = detail["state"]
+                country = detail["country"]
+                for code in country_json:
+                    if country == code["code"]:
+                        country=[code["en"],code["cn"]]
+                        airport = {"iata": iata, "icao": icao,"coordinates": coordinates,
+                                    "name": name, "city": city, "state": state, "country": country}
+                        airports.append(airport)
 
-    text = json.dumps(airports, indent=4)
-    airports_file = open("airports.json", "w")
+    text = json.dumps(airports, indent=4, ensure_ascii=False)
+    airports_file = open("airports.json", "w", encoding="utf-8")
     airports_file.write(text)
-
     return airports
 
 
@@ -81,9 +96,9 @@ def get_flight():
              [64.36031341552734, 31.81640625, 116.57603615429252, 90],
              [116.57603615429252, 31.81640625, 180, 90]]
 
-    flights = []
     i = 0
     num = 0
+    flights.clear()
     for grid in grids:
         response = requests.get(
             "https://zh.flightaware.com/ajax/ignoreall/vicinity_aircraft.rvt?&minLon=" + str(
@@ -94,29 +109,60 @@ def get_flight():
         text = response.text
         flight_json = json.loads(text)
 
-        text = json.dumps(flight_json, indent=4)
-        flight_file = open("flight_ori" + str(i) + ".json", "w")
-        i = i + 1
-        flight_file.write(text)
+        # text = json.dumps(flight_json, indent=4)
+        # flight_file = open("flight_ori" + str(i) + ".json", "w")
+        # i = i + 1
+        # flight_file.write(text)
 
         features = flight_json['features']
         for feature in features:
             flight_id = feature["properties"]["flight_id"]
             coordinates = feature["geometry"]["coordinates"]
             direction = feature["properties"]["direction"]
-            origin = feature["properties"]["origin"]["iata"]
-            destination = feature["properties"]["destination"]["iata"]
+            origin = {"iata": feature["properties"]["origin"]["iata"],"icao": feature["properties"]["origin"]["icao"]}
+            destination = {"iata": feature["properties"]["destination"]["iata"],"icao": feature["properties"]["destination"]["icao"]}
 
-            flight = {"flight_id": flight_id, "coordinates": coordinates, "direction": direction, "origin": origin,
-                      "destination": destination}
+            flight = {"flight_id": flight_id, "coordinates": coordinates, "direction": direction,
+                      "origin": origin, "destination": destination}
             flights.append(flight)
             num += 1
         print(num)
 
     text = json.dumps(flights, indent=4)
+    flights_file = open("flight_ori.json", "w")
+    flights_file.write(text)
+    return flights
+
+
+def clear_flight():
+    for flight in flights[:]:
+        ori = flight["origin"]
+        dst = flight["destination"]
+
+        ori_exist = False
+        dst_exist = False
+        exist = False
+        for airport in airports:
+            if ori_exist is False and ori["iata"] == airport["iata"]:
+                ori_exist = True
+                ori_airport = airport
+            elif dst_exist is False and dst["icao"] == airport["icao"]:
+                dst_exist = True
+                dst_airport = airport
+
+            if ori_exist is True and dst_exist is True:
+                if ori_airport["country"] == dst_airport["country"]:
+                    exist = False
+                else:
+                    exist = True
+                break
+
+        if exist is False:
+            flights.remove(flight)
+
+    text = json.dumps(flights, indent=4)
     flights_file = open("flight.json", "w")
     flights_file.write(text)
-
     return flights
 
 
@@ -148,5 +194,6 @@ def get_airlines(fs):
 
 if __name__ == "__main__":
     get_airports()
-    flights = get_flight()
-    # get_airlines(flights)
+    get_flight()
+    flights = clear_flight()
+    get_airlines(flights)
