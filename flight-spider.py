@@ -1,7 +1,13 @@
 import json
+import os
 import re
+import datetime
+import time
+
 import requests
 import codecs
+
+import schedule as schedule
 from bs4 import BeautifulSoup
 
 flights = []
@@ -9,6 +15,7 @@ airports = []
 
 
 def get_token():
+    print("get token...")
     response = requests.get("https://zh.flightaware.com/live/map")
     response.enconding = "utf-8"
     text = response.text
@@ -29,6 +36,7 @@ def get_token():
 
 
 def get_airports():
+    print("get airports...")
     response = requests.get("https://zh.flightaware.com/ajax/ignoreall/vicinity_airports.rvt")
     response.enconding = "utf-8"
 
@@ -36,13 +44,15 @@ def get_airports():
     airports_json = json.loads(web_text)
 
     airports_text = json.dumps(airports_json, indent=4)
-    airports_file = open("airports_ori.json", "w")
+    airports_file = open("ori-data/airports_ori.json", "w")
     airports_file.write(airports_text)
+    airports_file.close()
 
-    iata_text = open("airports-info.json", encoding="utf-8-sig")
+    iata_text = open("ref-data/airports-info.json", encoding="utf-8-sig")
     iata_json = json.load(iata_text)
+    iata_text.close()
 
-    country_json = json.load(codecs.open('country_code.json', 'r', 'utf-8-sig'))
+    country_json = json.load(codecs.open('ref-data/country_code.json', 'r', 'utf-8-sig'))
     airports.clear()
     features = airports_json['features']
 
@@ -58,18 +68,20 @@ def get_airports():
                 country = detail["country"]
                 for code in country_json:
                     if country == code["code"]:
-                        country=[code["en"],code["cn"]]
-                        airport = {"iata": iata, "icao": icao,"coordinates": coordinates,
-                                    "name": name, "city": city, "state": state, "country": country}
+                        country = [code["en"], code["cn"]]
+                        airport = {"iata": iata, "icao": icao, "coordinates": coordinates,
+                                   "name": name, "city": city, "state": state, "country": country}
                         airports.append(airport)
 
     text = json.dumps(airports, indent=4, ensure_ascii=False)
     airports_file = open("airports.json", "w", encoding="utf-8")
     airports_file.write(text)
+    airports_file.close()
     return airports
 
 
 def get_flight():
+    print("get flight...")
     token = get_token()
     grids = [[-180, -90, -79.9643325805664, 29.019527435302734],
              [-180, 29.019527435302734, -90.90573370456696, 36.03515625],
@@ -119,8 +131,9 @@ def get_flight():
             flight_id = feature["properties"]["flight_id"]
             coordinates = feature["geometry"]["coordinates"]
             direction = feature["properties"]["direction"]
-            origin = {"iata": feature["properties"]["origin"]["iata"],"icao": feature["properties"]["origin"]["icao"]}
-            destination = {"iata": feature["properties"]["destination"]["iata"],"icao": feature["properties"]["destination"]["icao"]}
+            origin = {"iata": feature["properties"]["origin"]["iata"], "icao": feature["properties"]["origin"]["icao"]}
+            destination = {"iata": feature["properties"]["destination"]["iata"],
+                           "icao": feature["properties"]["destination"]["icao"]}
 
             flight = {"flight_id": flight_id, "coordinates": coordinates, "direction": direction,
                       "origin": origin, "destination": destination}
@@ -129,12 +142,14 @@ def get_flight():
         print(num)
 
     text = json.dumps(flights, indent=4)
-    flights_file = open("flight_ori.json", "w")
+    flights_file = open("ori-data/flight_ori.json", "w")
     flights_file.write(text)
+    flights_file.close()
     return flights
 
 
 def clear_flight():
+    print("clear flights...")
     for flight in flights[:]:
         ori = flight["origin"]
         dst = flight["destination"]
@@ -163,10 +178,12 @@ def clear_flight():
     text = json.dumps(flights, indent=4)
     flights_file = open("flight.json", "w")
     flights_file.write(text)
+    flights_file.close()
     return flights
 
 
 def get_airlines(fs):
+    print("get airlines...")
     airlines = []
     directions = []
     counts = []
@@ -190,10 +207,128 @@ def get_airlines(fs):
     text = json.dumps(airlines, indent=4)
     airlines_file = open("airlines.json", "w")
     airlines_file.write(text)
+    airlines_file.close()
+
+
+def statistics(fs):
+    print("statistic data...")
+    if os.path.isfile("sta-data/statistics.json") and os.path.getsize("sta-data/statistics.json") != 0:
+        statistics_text = open("sta-data/statistics.json", encoding="utf-8-sig")
+        statistics = json.load(statistics_text)
+        statistics_text.close()
+
+        text = json.dumps(statistics, indent=4)
+        old_statistics_file = open("sta-data/statistics-" + time.strftime("%H%M%S", time.localtime()) + ".json", "w")
+        old_statistics_file.write(text)
+        old_statistics_file.close()
+    else:
+        statistics = []
+
+    for f in fs:
+        origin = f["origin"]
+        destination = f["destination"]
+        bool_in = False
+        bool_out = False
+
+        for s in statistics:
+            if s["airport"] == origin:
+                if s["flights_in"].count(f["flight_id"]) == 0:
+                    s["flights_in"].append(f["flight_id"])
+                    s["count_in"] += 1
+                    bool_in = True
+            if s["airport"] == destination:
+                if s["flights_out"].count(f["flight_id"]) == 0:
+                    s["flights_out"].append(f["flight_id"])
+                    s["count_out"] += 1
+                    bool_out = True
+        if not bool_in:
+            flights_in = [f["flight_id"]]
+            flights_out = []
+            airport = {"airport": origin,
+                       "flights_in": flights_in,
+                       "flights_out": flights_out,
+                       "count_in": 1,
+                       "count_out": 0}
+            statistics.append(airport)
+
+        if not bool_out:
+            flights_in = []
+            flights_out = [f["flight_id"]]
+            airport = {"airport": destination,
+                       "flights_in": flights_in,
+                       "flights_out": flights_out,
+                       "count_in": 0,
+                       "count_out": 1}
+            statistics.append(airport)
+
+    text = json.dumps(statistics, indent=4)
+    statistics_file = open("sta-data/statistics.json", "w")
+    statistics_file.write(text)
+    statistics_file.close()
+
+
+def job():
+    print("-----------------------------------------------------------------------------")
+    print(time.strftime("%H:%M:%S", time.localtime()))
+    get_flight()
+    flights = clear_flight()
+    get_airlines(flights)
+    statistics(flights)
+
+
+def rank_airports():
+    statistics_file = open("sta-data/statistics.json", "r")
+    statistics = json.load(statistics_file)
+    statistics_file.close()
+
+    ranked = sorted(statistics, key=lambda st: st["count_in"] + st["count_out"])
+    num = -1
+    rank = 0
+    ranks = []
+    for r in ranked:
+        if r["count_in"] + r["count_out"] != num:
+            rank += 1
+        num = r["count_in"] + r["count_out"]
+        airport = {"iata": r["airport"]["iata"],
+                   "icao": r["airport"]["icao"],
+                   "count_in": 0,
+                   "count_out": 1,
+                   "count_total": num,
+                   "rank": rank
+                   }
+        ranks.append(airport)
+
+    airports = json.load(codecs.open('airports.json', 'r', 'utf-8-sig'))
+
+    for ap in airports:
+        for r in ranks:
+            if ap["iata"] == r["iata"] and ap["icao"] == r["icao"]:
+                ap["count_in"] = r["count_in"]
+                ap["count_out"] = r["count_out"]
+                ap["count_total"] = r["count_total"]
+                ap["rank"] = r["rank"]
+
+    text = json.dumps(airports, indent=4)
+    show_file = open("show.json", "w", encoding="utf-8")
+    show_file.write(text)
+    show_file.close()
 
 
 if __name__ == "__main__":
+    print(time.strftime("%H:%M:%S", time.localtime()))
+
     get_airports()
     get_flight()
     flights = clear_flight()
     get_airlines(flights)
+    statistics(flights)
+
+    schedule.every(30).minutes.do(job)
+
+    no = 0
+    while no > 0:
+        schedule.run_pending()
+        time.sleep(1)
+        no -= 1
+
+    rank_airports()
