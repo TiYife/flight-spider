@@ -323,12 +323,11 @@ if __name__ == "__main__":
     get_airlines(flights)
     statistics(flights)
 
-    schedule.every(30).minutes.do(job)
+    schedule.every(20).minutes.do(job)
 
-    no = 0
-    while no > 0:
+    no = 50
+    while True:
         schedule.run_pending()
         time.sleep(1)
-        no -= 1
 
-    rank_airports()
+    # rank_airports()
