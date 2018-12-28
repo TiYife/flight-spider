@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 
 flights = []
 airports = []
+statistics = []
 
 
 def get_token():
@@ -176,7 +177,7 @@ def clear_flight():
             flights.remove(flight)
 
     text = json.dumps(flights, indent=4)
-    flights_file = open("flight.json", "w")
+    flights_file = open("flight/flight-" + time.strftime("%H%M%S", time.localtime()) + ".json", "w")
     flights_file.write(text)
     flights_file.close()
     return flights
@@ -212,6 +213,7 @@ def get_airlines(fs):
 
 def statistics(fs):
     print("statistic data...")
+    '''
     if os.path.isfile("sta-data/statistics.json") and os.path.getsize("sta-data/statistics.json") != 0:
         statistics_text = open("sta-data/statistics.json", encoding="utf-8-sig")
         statistics = json.load(statistics_text)
@@ -222,7 +224,7 @@ def statistics(fs):
         old_statistics_file.write(text)
         old_statistics_file.close()
     else:
-        statistics = []
+    '''
 
     for f in fs:
         origin = f["origin"]
@@ -262,7 +264,7 @@ def statistics(fs):
             statistics.append(airport)
 
     text = json.dumps(statistics, indent=4)
-    statistics_file = open("sta-data/statistics.json", "w")
+    statistics_file = open("sta-data/statistics-" + time.strftime("%H%M%S", time.localtime()) + ".json", "w")
     statistics_file.write(text)
     statistics_file.close()
 
@@ -281,35 +283,55 @@ def rank_airports():
     statistics = json.load(statistics_file)
     statistics_file.close()
 
-    ranked = sorted(statistics, key=lambda st: st["count_in"] + st["count_out"])
-    num = -1
-    rank = 0
+    ranked = sorted(statistics, key=lambda st: st["count_in"] + st["count_out"], reverse=True)
+    num = 0
+    front = -1
+    rank = 1
     ranks = []
     for r in ranked:
-        if r["count_in"] + r["count_out"] != num:
-            rank += 1
-        num = r["count_in"] + r["count_out"]
+        if r["count_in"] + r["count_out"] == front:
+            num += 1
+        else:
+            rank += num
+            num = 1
+        front = r["count_in"] + r["count_out"]
         airport = {"iata": r["airport"]["iata"],
                    "icao": r["airport"]["icao"],
-                   "count_in": 0,
-                   "count_out": 1,
-                   "count_total": num,
+                   "count_in": r["count_in"],
+                   "count_out": r["count_out"],
+                   "count_total": r["count_in"] + r["count_out"],
                    "rank": rank
                    }
         ranks.append(airport)
 
-    airports = json.load(codecs.open('airports.json', 'r', 'utf-8-sig'))
+    text = json.dumps(ranks, indent=4, ensure_ascii=False)
+    show_file = open("rank.json", "w", encoding="utf-8")
+    show_file.write(text)
+    show_file.close()
 
-    for ap in airports:
+    all_airports_with_rank = json.load(open('airports.json', 'r'))
+
+    for ap in all_airports_with_rank:
         for r in ranks:
             if ap["iata"] == r["iata"] and ap["icao"] == r["icao"]:
                 ap["count_in"] = r["count_in"]
                 ap["count_out"] = r["count_out"]
                 ap["count_total"] = r["count_total"]
                 ap["rank"] = r["rank"]
+                break
 
-    text = json.dumps(airports, indent=4)
-    show_file = open("show.json", "w", encoding="utf-8")
+    text = json.dumps(airports, indent=4, ensure_ascii=False)
+    show_file = open("all_airports_with_rank.json", "w", encoding="utf-8")
+    show_file.write(text)
+    show_file.close()
+
+    airports_with_rank = []
+    for ap in all_airports_with_rank:
+        if "rank" in ap:
+            airports_with_rank.append(ap)
+
+    text = json.dumps(airports_with_rank, indent=4, ensure_ascii=False)
+    show_file = open("airports_with_rank.json", "w", encoding="utf-8")
     show_file.write(text)
     show_file.close()
 
@@ -323,11 +345,10 @@ if __name__ == "__main__":
     get_airlines(flights)
     statistics(flights)
 
-    schedule.every(20).minutes.do(job)
+    schedule.every(2).minutes.do(job)
 
-    no = 50
-    while True:
+    while 0:
         schedule.run_pending()
         time.sleep(1)
 
-    # rank_airports()
+    rank_airports()
