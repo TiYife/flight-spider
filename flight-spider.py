@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 
 flights = []
 airports = []
-statistics= []
+statistics = []
 
 
 def get_token():
@@ -226,7 +226,6 @@ def statistic(fs):
     else:
     '''
 
-
     for f in fs:
         origin = f["origin"]
         destination = f["destination"]
@@ -235,15 +234,17 @@ def statistic(fs):
 
         for s in statistics:
             if s["airport"] == origin:
+                bool_in = True
                 if s["flights_in"].count(f["flight_id"]) == 0:
                     s["flights_in"].append(f["flight_id"])
                     s["count_in"] += 1
-                    bool_in = True
+
             if s["airport"] == destination:
+                bool_out = True
                 if s["flights_out"].count(f["flight_id"]) == 0:
                     s["flights_out"].append(f["flight_id"])
                     s["count_out"] += 1
-                    bool_out = True
+
         if not bool_in:
             flights_in = [f["flight_id"]]
             flights_out = []
@@ -265,7 +266,7 @@ def statistic(fs):
             statistics.append(airport)
 
     text = json.dumps(statistics, indent=4)
-    statistics_file = open("sta-data/statistics-" + time.strftime("%H%M%S", time.localtime()) + ".json", "w")
+    statistics_file = open("sta-data2/statistics-" + time.strftime("%H%M%S", time.localtime()) + ".json", "w")
     statistics_file.write(text)
     statistics_file.close()
 
@@ -348,7 +349,7 @@ if __name__ == "__main__":
 
     schedule.every(2).minutes.do(job)
 
-    while 0:
+    while 1:
         schedule.run_pending()
         time.sleep(1)
 
