@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 
 flights = []
 airports = []
-statistics = []
+statistics= []
 
 
 def get_token():
@@ -211,7 +211,7 @@ def get_airlines(fs):
     airlines_file.close()
 
 
-def statistics(fs):
+def statistic(fs):
     print("statistic data...")
     '''
     if os.path.isfile("sta-data/statistics.json") and os.path.getsize("sta-data/statistics.json") != 0:
@@ -225,6 +225,7 @@ def statistics(fs):
         old_statistics_file.close()
     else:
     '''
+
 
     for f in fs:
         origin = f["origin"]
@@ -275,7 +276,7 @@ def job():
     get_flight()
     flights = clear_flight()
     get_airlines(flights)
-    statistics(flights)
+    statistic(flights)
 
 
 def rank_airports():
@@ -343,7 +344,7 @@ if __name__ == "__main__":
     get_flight()
     flights = clear_flight()
     get_airlines(flights)
-    statistics(flights)
+    statistic(flights)
 
     schedule.every(2).minutes.do(job)
 
